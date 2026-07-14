@@ -1,0 +1,68 @@
+# ── API keys — never commit ──────────────────
+.env
+
+# ── Output files (user-generated) ────────────
+*_fanout.md
+*_audit.md
+*_report.md
+*_raw.json
+fanout_raw.json
+
+# Keep sample output
+!sample_output/
+
+# ── Page content files (user-specific) ────────
+page.txt
+page.html
+page_content.txt
+page_content.html
+lai_page.txt
+packfora_page.txt
+
+# ── Screenshots passed via --page-image ───────
+# (exclude user screenshots but allow repo assets)
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+!assets/
+
+# ── Python ────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+.installed.cfg
+
+# ── Virtual environments ───────────────────────
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ── macOS ─────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# ── Editors ───────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
