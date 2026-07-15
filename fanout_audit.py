@@ -46,6 +46,13 @@ except ImportError:
 
 load_dotenv()
 
+# Optional PDF generation — requires reportlab
+try:
+    from fanout_pdf import generate_pdf
+    HAS_PDF = True
+except ImportError:
+    HAS_PDF = False
+
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
@@ -1066,7 +1073,9 @@ def main():
     parser.add_argument("--market", default="Global", help="Target market/country")
     parser.add_argument("--persona", default="general user", help="Simulated user persona")
     parser.add_argument("--fanouts", type=int, default=20, help="Fan-outs per model")
-    parser.add_argument("--output", default=None, help="Save report to file (e.g. report.md)")
+    parser.add_argument("--output", default=None, help="Save markdown report to file (e.g. report.md)")
+    parser.add_argument("--output-pdf", default=None, dest="output_pdf",
+                        help="Save styled PDF report to file (e.g. report.pdf) — requires reportlab")
     parser.add_argument("--no-filter", action="store_true", dest="no_filter",
                         help="Skip user-intent filter and keep all raw queries")
     parser.add_argument("--outline-depth", choices=["lean", "full"], default="lean",
@@ -1258,10 +1267,31 @@ def main():
     if args.output:
         with open(args.output, "w") as f:
             f.write(report)
-        print(f"   ✅ Report saved to: {args.output}")
+        print(f"   ✅ Markdown report saved to: {args.output}")
     else:
         print("\n" + "═"*60 + "\n")
         print(report)
+
+    # ── PDF output
+    if args.output_pdf:
+        print(f"\n📄 Generating PDF report...")
+        if not HAS_PDF:
+            print("   ⚠️  fanout_pdf.py not found alongside fanout_audit.py — PDF skipped.")
+            print("   ⚠️  Ensure fanout_pdf.py is in the same directory.")
+        else:
+            success = generate_pdf(
+                keyword    = args.keyword,
+                url        = args.url,
+                market     = args.market,
+                persona    = args.persona,
+                models_used= models_used,
+                clusters   = clusters,
+                forecast   = forecast,
+                outlines   = outlines,
+                output_path= args.output_pdf,
+            )
+            if success:
+                print(f"   ✅ PDF report saved to: {args.output_pdf}")
 
     # Always save raw JSON for Claude Code to read
     raw_json_path = args.output.replace(".md", "_raw.json") if args.output else "fanout_raw.json"
