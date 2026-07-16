@@ -44,6 +44,12 @@ try:
 except ImportError:
     HAS_PIL = False
 
+try:
+    import pdfplumber
+    HAS_PDFPLUMBER = True
+except ImportError:
+    HAS_PDFPLUMBER = False
+
 load_dotenv()
 
 # Optional PDF generation — requires reportlab
@@ -1084,8 +1090,8 @@ def main():
     parser.add_argument("--no-outline", action="store_true", dest="no_outline",
                         help="Skip content outline generation entirely")
     parser.add_argument("--page-file", default=None, dest="page_file",
-                        help="Path to a .txt or .html file containing the page content "
-                             "(use when the site blocks automated fetches)")
+                        help="Path to a saved page file: .pdf (Chrome Print→Save as PDF, best for SPAs), "
+                             ".html, or .txt. PDF extracts rendered text directly — much better than view-source HTML.")
     parser.add_argument("--page-image", default=None, dest="page_image",
                         help="Path to a screenshot (.png/.jpg/.webp) of the page — "
                              "Claude extracts the content via vision "
@@ -1124,19 +1130,68 @@ def main():
             print("   ⚠️  Image extraction returned no content — check the file path and format")
 
     elif args.page_file:
-        try:
-            with open(args.page_file, "r", encoding="utf-8") as f:
-                raw_file = f.read()
-            soup = BeautifulSoup(raw_file, "html.parser")
-            for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-                tag.decompose()
-            page_content = soup.get_text(separator="\n", strip=True)[:MAX_PAGE_CHARS]
-            word_count = len(page_content.split())
-            print(f"📄 Page content loaded from file: {args.page_file}")
-            print(f"   ✅ {word_count} words extracted")
-        except Exception as e:
-            print(f"📄 Failed to read --page-file: {e}")
-            print("   Continuing without page content (coverage scoring will be skipped)")
+        page_file_path = args.page_file
+        file_ext = os.path.splitext(page_file_path)[1].lower()
+
+        if file_ext == ".pdf":
+            # ── PDF: extract text directly with pdfplumber ──────────────
+            print(f"📄 Extracting page content from PDF: {page_file_path}")
+            if not HAS_PDFPLUMBER:
+                print("   ⚠️  pdfplumber is not installed — PDF extraction skipped.")
+                print("   ⚠️  Install it with: pip install pdfplumber --break-system-packages")
+                print("   ⚠️  Or convert the PDF to a PNG and use --page-image instead.")
+            else:
+                try:
+                    import pdfplumber
+                    extracted_pages = []
+                    with pdfplumber.open(page_file_path) as pdf:
+                        for page in pdf.pages:
+                            text = page.extract_text()
+                            if text:
+                                extracted_pages.append(text.strip())
+                    page_content = "\n\n".join(extracted_pages)[:MAX_PAGE_CHARS]
+                    word_count = len(page_content.split())
+
+                    if word_count < 80:
+                        print(f"   ⚠️  PDF yielded only {word_count} words — likely an image-based PDF.")
+                        print("   ⚠️  Try saving the page as PNG from Chrome DevTools and use --page-image instead:")
+                        print("   ⚠️    DevTools → Cmd+Shift+P → 'Capture full size screenshot'")
+                        page_content = ""
+                    else:
+                        print(f"   ✅ {word_count} words extracted from PDF ({len(pdf.pages)} page(s))")
+                except Exception as e:
+                    print(f"   ⚠️  PDF extraction failed: {e}")
+                    page_content = ""
+        else:
+            # ── HTML / TXT: existing behaviour ──────────────────────────
+            try:
+                with open(page_file_path, "r", encoding="utf-8") as f:
+                    raw_file = f.read()
+                soup = BeautifulSoup(raw_file, "html.parser")
+                for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                    tag.decompose()
+                extracted = soup.get_text(separator="\n", strip=True)
+
+                # SPA detection — high word count but content is HTML markup noise
+                word_count = len(extracted.split())
+                first_500  = extracted[:500]
+                html_tags  = first_500.count("<") + first_500.count(">") + first_500.count("=")
+                if html_tags > 20 and word_count > 1000:
+                    print(f"📄 Page file loaded: {page_file_path}")
+                    print(f"   ⚠️  {word_count} 'words' found but content appears to be HTML markup, not page text.")
+                    print("   ⚠️  This is likely a JavaScript-rendered SPA — the HTML file is the shell, not the rendered page.")
+                    print("   ⚠️  Better options:")
+                    print("   ⚠️    A) Chrome DevTools → Cmd+Shift+P → 'Capture full size screenshot' → --page-image")
+                    print("   ⚠️    B) Chrome → File → Print → Save as PDF → --page-file page.pdf")
+                    print("   Continuing with extracted text (coverage scoring may be unreliable)...")
+
+                page_content = extracted[:MAX_PAGE_CHARS]
+                word_count   = len(page_content.split())
+                print(f"📄 Page content loaded from file: {page_file_path}")
+                print(f"   ✅ {word_count} words extracted")
+            except Exception as e:
+                print(f"📄 Failed to read --page-file: {e}")
+                print("   Continuing without page content (coverage scoring will be skipped)")
 
     else:
         print("📄 Fetching page content...")
