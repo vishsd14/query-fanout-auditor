@@ -38,6 +38,7 @@ Most tools in this space use a single LLM. This one queries **Claude, GPT-4o, an
 
 📝 Generating report...
    ✅ Report saved to: report.md
+   ✅ PDF report saved to: report.pdf
 ```
 
 **Every report includes:**
@@ -65,7 +66,8 @@ cp .env.example .env
 python3 fanout_audit.py \
   --keyword "packaging procurement" \
   --url https://yoursite.com/page \
-  --output report.md
+  --output report.md \
+  --output-pdf report.pdf
 ```
 
 ---
@@ -91,9 +93,10 @@ The tool runs with the Anthropic key only. Each additional model adds an indepen
 | `--market` | `Global` | Target market / country |
 | `--persona` | `general user` | Simulated user persona |
 | `--fanouts` | `20` | Fan-out queries per model |
-| `--output` | stdout | Save report to a `.md` file |
+| `--output` | stdout | Save markdown report to a `.md` file |
+| `--output-pdf` | — | Save styled PDF report to a `.pdf` file (requires reportlab) |
 | `--page-image` | — | Path to a page screenshot — Claude extracts content via vision |
-| `--page-file` | — | Path to a saved `.html` or `.txt` file of the page |
+| `--page-file` | — | Path to a saved `.pdf`, `.html`, or `.txt` file of the page |
 | `--outline-depth` | `lean` | `lean` = structure only · `full` = with draft copy |
 | `--no-outline` | — | Skip outline generation (faster runs) |
 | `--no-filter` | — | Skip the user-intent query filter |
@@ -102,12 +105,27 @@ The tool runs with the Anthropic key only. Each additional model adds an indepen
 
 ## Handling bot-protected sites
 
-Many enterprise sites block automated fetches (HTTP 403). Two workarounds:
+Many enterprise sites block automated fetches (HTTP 403), and JavaScript-rendered SPAs return near-empty HTML source. Three workarounds, in recommended order:
 
-**Option A — Screenshot**
+**Option A — PDF (best for SPA sites)**
+
+Chrome renders the full page before printing, so the PDF contains real content — not the JS shell.
 
 ```bash
-# Chrome: DevTools → Cmd+Shift+P → "Capture full size screenshot"
+# Chrome: Cmd+P → Save as PDF → save as page.pdf
+
+python3 fanout_audit.py \
+  --keyword "your keyword" \
+  --url https://yoursite.com \
+  --page-file ~/Downloads/page.pdf \
+  --output report.md \
+  --output-pdf report.pdf
+```
+
+**Option B — Screenshot**
+
+```bash
+# Chrome DevTools: Cmd+Shift+P → "Capture full size screenshot"
 
 python3 fanout_audit.py \
   --keyword "your keyword" \
@@ -118,7 +136,7 @@ python3 fanout_audit.py \
 
 Claude reads the screenshot via vision. Images over 7MB are automatically compressed — no manual resizing needed.
 
-**Option B — Saved file**
+**Option C — Saved text file**
 
 ```bash
 # Chrome DevTools console: copy(document.body.innerText) → paste into page.txt
@@ -130,13 +148,15 @@ python3 fanout_audit.py \
   --output report.md
 ```
 
+> **Note:** `view-source:` HTML files from SPAs are almost always empty markup shells. Use the PDF option instead.
+
 ---
 
 ## As a Claude Code skill
 
 ```bash
 mkdir -p ~/.claude/skills/query-fanout-auditor
-cp SKILL.md fanout_audit.py requirements.txt .env.example \
+cp SKILL.md fanout_audit.py fanout_pdf.py requirements.txt .env.example \
    ~/.claude/skills/query-fanout-auditor/
 cd ~/.claude/skills/query-fanout-auditor
 cp .env.example .env  # add your keys
@@ -193,7 +213,8 @@ This is an AI citation coverage projection, not a traffic or ranking forecast.
 
 - [ ] Schema markup analysis — present vs missing schema per gap
 - [ ] Multi-keyword batch mode — `--keywords-file` flag
-- [ ] SPA detection — warn when fetched content is suspiciously low
+- [x] SPA detection — warns when fetched content is suspiciously low or HTML noise
+- [x] PDF page input — `--page-file page.pdf` via pdfplumber
 - [ ] Web interface — browser-based, no CLI required
 
 ---
